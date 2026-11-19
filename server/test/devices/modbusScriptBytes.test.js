@@ -71,4 +71,42 @@ describe('Modbus write-script byte arrays', function () {
         sinon.assert.notCalled(client.writeRegisters);
         sinon.assert.calledWithMatch(logger.error, 'synthetic script failure');
     });
+    for (const output of [undefined, null]) {
+        it(`rejects a ${output} script result before transport`, async function () {
+            runScript.resolves(output);
+            assert.equal(await device().setValue('target', 42), false);
+            sinon.assert.notCalled(client.writeRegister);
+            sinon.assert.notCalled(client.writeRegisters);
+            sinon.assert.calledWithMatch(logger.error, 'returned no value');
+        });
+    }
+    it('rejects a non-finite number before transport', async function () {
+        runScript.resolves(NaN);
+        assert.equal(await device().setValue('target', 42), false);
+        sinon.assert.notCalled(client.writeRegister);
+        sinon.assert.notCalled(client.writeRegisters);
+        sinon.assert.calledWithMatch(logger.error, 'returned invalid number');
+    });
+    function multiWordDevice(type) {
+        const result = driver.create({ name: 'Script number', property: {}, tags: {
+            target: { name: 'Target', type, memaddress: '400000', address: '8', divisor: 1, scaleWriteFunction: 'synthetic-script' }
+        } }, logger, new EventEmitter(), null, { scriptsMgr: { runScript } });
+        result.init(driver.ModbusTypes.TCP);
+        return result;
+    }
+    const numberCases = [
+        // 6000 = 0x00001770, mid-little-endian swaps the two words
+        ['UInt32MLE', 6000, Buffer.from([0x17, 0x70, 0x00, 0x00])],
+        ['UInt32', 6000, Buffer.from([0x00, 0x00, 0x17, 0x70])],
+        ['Float32', 1.5, Buffer.from([0x3f, 0xc0, 0x00, 0x00])]
+    ];
+    for (const [type, output, expected] of numberCases) {
+        it(`formats a number for a ${type} tag with the tag datatype`, async function () {
+            runScript.resolves(output);
+            assert.equal(await multiWordDevice(type).setValue('target', 60), true);
+            sinon.assert.calledOnceWithExactly(client.writeRegisters, 7, expected);
+            sinon.assert.notCalled(client.writeRegister);
+            sinon.assert.notCalled(logger.error);
+        });
+    }
 });

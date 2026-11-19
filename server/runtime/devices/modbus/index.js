@@ -340,7 +340,19 @@ function MODBUSclient(_data, _logger, _events, _runtime) {
                 };
                 try {
                     const bufVal = await runtime.scriptsMgr.runScript(script, false);
-                    if (Array.isArray(bufVal)) {
+                    if (utils.isNullOrUndefined(bufVal)) {
+                        logger.error(`'${data.tags[sigid].name}' setValue script error, returned no value`);
+                        return false;
+                    }
+                    if (typeof bufVal === 'number') {
+                        if (!Number.isFinite(bufVal)) {
+                            logger.error(`'${data.tags[sigid].name}' setValue script error, returned invalid number ${bufVal}`);
+                            return false;
+                        }
+                        // a single register cannot hold a multi-word value: format it like a write without script
+                        const datatype = datatypes[data.tags[sigid].type];
+                        val = (datatype && datatype.WordLen > 1) ? datatype.formatter(bufVal) : bufVal;
+                    } else if (Array.isArray(bufVal)) {
                         if ((bufVal.length % 2) !== 0) {
                             logger.error(`'${data.tags[sigid].name}' setValue script error, returned buffer invalid must be mod 2`);
                             return false;
