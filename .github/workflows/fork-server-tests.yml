@@ -15,7 +15,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - run: npm install --ignore-scripts --no-audit --no-fund
+      - run: npm install --no-audit --no-fund
       - name: Modbus write-script tests
         run: npx mocha test/devices/modbusScriptBytes.test.js --timeout 10000
       - name: Full server suite
